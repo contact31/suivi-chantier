@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi Livraisons — Archi BT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#C8502A;--accent2:#E8A87C;
+  --bg:#F5F2ED;--bg2:#ECEAE4;--bg3:#E2DED6;
+  --card:#FFFFFF;--text:#1A1916;--text2:#6B6860;--text3:#A09D97;
+  --border:#D8D5CE;--border2:#C5C2BB;
+  --success:#3B7A47;--danger:#B03A2E;--warn:#B07A1A;--info:#2A5FA5;
+  --mono:'DM Mono',monospace;--sans:'Syne',sans-serif;
+  --radius:8px;--radius-lg:12px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
+
+/* TOPBAR */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--text);display:flex;align-items:center;height:52px;padding:0 16px;gap:0;border-bottom:1px solid #2e2c28}
+.brand{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-right:16px;white-space:nowrap;flex-shrink:0}
+.brand span{color:var(--accent2)}
+.topbar-right{display:flex;gap:8px;margin-left:auto;flex-shrink:0}
+.btn-top{background:none;border:1px solid #333;color:#aaa;padding:5px 10px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-family:var(--mono);transition:all .15s;white-space:nowrap}
+.btn-top:hover{border-color:#888;color:#fff}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#888;display:inline-block;margin-right:4px;transition:background .3s}
+.sync-dot.ok{background:#3B7A47}.sync-dot.err{background:#B03A2E}.sync-dot.loading{background:#B07A1A;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* PRINT */
+@media print {
+  .topbar,.sidebar,.ch-actions,.lot-acts,.btn-sm,.btn-del,.filter-bar{display:none!important}
+  .main{margin:0!important;padding:0!important;max-width:100%!important}
+  body{background:#fff!important}
+  .print-header{display:block!important}
+  .ch-header{display:none!important}
+  .stats{display:none!important}
+  table{page-break-inside:auto;width:100%;font-size:9px;border-collapse:collapse}
+  table thead th{background:#ECEAE4!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;padding:5px 6px!important;font-size:8px}
+  table tbody td{padding:5px 6px!important}
+  tr{page-break-inside:avoid}
+  .lot-section{page-break-inside:avoid;margin-bottom:14px}
+  .table-wrap{border:1px solid #D8D5CE!important;border-radius:0!important;overflow:visible!important}
+  .badge{print-color-adjust:exact;-webkit-print-color-adjust:exact;font-size:8px!important;padding:2px 6px!important}
+  .prog-track{display:none!important}
+  .days-late,.days-ok,.days-warn,.days-neutral{font-size:9px}
+  .lot-header{padding-bottom:5px!important;margin-bottom:6px!important}
+  @page{size:A4 portrait;margin:12mm 10mm}
+}
+.print-header{display:none}
+
+/* SIDEBAR */
+.sidebar{position:fixed;top:52px;left:0;bottom:0;width:220px;background:var(--text);z-index:90;display:flex;flex-direction:column;border-right:1px solid #2e2c28;overflow-y:auto}
+.sidebar-section{padding:12px 12px 4px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#555}
+.sitem{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;font-family:var(--mono);font-size:12px;color:#888;border:none;background:none;width:100%;text-align:left;transition:all .15s;border-left:2px solid transparent}
+.sitem:hover{color:#fff;background:rgba(255,255,255,.05)}
+.sitem.active{color:#fff;border-left-color:var(--accent2);background:rgba(255,255,255,.07)}
+.sitem-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sitem-badge{background:#B03A2E;color:#fff;font-size:10px;padding:1px 5px;border-radius:10px;margin-left:auto}
+.sidebar-footer{margin-top:auto;padding:12px;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2e2c28}
+.btn-new-ch{font-family:var(--mono);font-size:11px;color:#888;border:1px dashed #444;background:none;padding:7px 11px;border-radius:var(--radius);cursor:pointer;width:100%;text-align:center;transition:all .15s}
+.btn-new-ch:hover{color:#fff;border-color:#888}
+
+/* MAIN */
+.main{margin-top:52px;margin-left:220px;padding:24px 24px 60px;max-width:1200px}
+
+/* EMPTY */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;text-align:center}
+.empty-state h2{font-size:22px;font-weight:700}.empty-state p{font-size:13px;color:var(--text2);font-family:var(--mono)}
+
+/* CHANTIER HEADER */
+.ch-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.ch-name{font-size:24px;font-weight:800;line-height:1}
+.ch-meta{font-size:11px;font-family:var(--mono);color:var(--text3);margin-top:4px}
+.ch-actions{display:flex;gap:7px;flex-wrap:wrap}
+
+/* STATS */
+.stats{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px;min-width:100px}
+.stat-label{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.stat-val{font-size:20px;font-weight:700}
+.stat-val.green{color:var(--success)}.stat-val.red{color:var(--danger)}.stat-val.orange{color:var(--accent)}
+
+/* LOTS */
+.lot-section{margin-bottom:24px}
+.lot-header{display:flex;align-items:center;gap:9px;margin-bottom:9px;padding:8px 12px;border-radius:var(--radius);background:var(--bg2)}
+.lot-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+.lot-name{font-size:13px;font-weight:700;letter-spacing:.02em}
+.lot-count{font-size:11px;font-family:var(--mono);color:var(--text3)}
+.lot-acts{margin-left:auto;display:flex;gap:5px}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:800px}
+thead th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);padding:8px 11px;text-align:left;background:var(--bg2);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--bg2);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--bg)}
+tbody td{padding:8px 11px;vertical-align:middle}
+td.name{font-weight:600;font-size:13px}
+td.mono{font-family:var(--mono);font-size:11px;color:var(--text2)}
+td.sub{font-family:var(--mono);font-size:10px;color:var(--text3)}
+
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.b-pending{background:#FFF3DC;color:#7A5200;border:1px solid #F5DFA0}
+.b-ordered{background:#DCEEFF;color:#1A3F7A;border:1px solid #A8CDEF}
+.b-delivered{background:#D8F0E0;color:#1E5C30;border:1px solid #9EDAB4}
+.b-late{background:#FFE0DC;color:#8C1F1A;border:1px solid #F5B0A8}
+.badge-btn{cursor:pointer;position:relative;user-select:none}
+.badge-btn:hover{opacity:.8}
+.status-menu{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:500;min-width:150px;padding:4px 0;display:none}
+.status-menu.open{display:block}
+.status-opt{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--text);transition:background .1s}
+.status-opt:hover{background:var(--bg2)}
+
+.prog-track{height:3px;border-radius:2px;background:var(--bg3);overflow:hidden;min-width:50px}
+.prog-fill{height:100%;border-radius:2px}
+.days-late{color:var(--danger);font-weight:600}.days-ok{color:var(--success)}.days-warn{color:var(--warn)}.days-neutral{color:var(--text3)}
+
+.btn-sm{font-family:var(--mono);font-size:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);border-radius:5px;padding:3px 7px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent)}
+.btn-del{background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:3px 5px;border-radius:4px;transition:all .15s}
+.btn-del:hover{background:#FFE0DC;color:var(--danger)}
+
+/* BUTTONS */
+.btn{font-family:var(--sans);font-weight:600;font-size:12px;padding:7px 13px;border-radius:var(--radius);cursor:pointer;transition:all .15s;border:1px solid var(--border2);background:transparent;color:var(--text)}
+.btn:hover{background:var(--bg2)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{opacity:.88}
+.btn-danger{background:transparent;color:var(--danger);border-color:#F5B0A8}.btn-danger:hover{background:#FFE0DC}
+
+/* FILTER */
+.filter-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.chip{font-family:var(--mono);font-size:11px;padding:4px 11px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;transition:all .15s}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip:hover:not(.active){border-color:var(--text2);color:var(--text)}
+
+/* MODALS */
+.overlay{position:fixed;inset:0;background:rgba(26,25,22,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border);width:100%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,.15);animation:slideUp .18s;max-height:90vh;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-lg{max-width:680px}
+.mhead{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--bg2)}
+.mtitle{font-size:14px;font-weight:700}
+.mclose{background:none;border:none;cursor:pointer;color:var(--text3);font-size:17px;padding:2px 6px;border-radius:4px}
+.mclose:hover{color:var(--text);background:var(--bg2)}
+.mbody{padding:18px}
+.mfoot{padding:12px 18px;border-top:1px solid var(--bg2);display:flex;gap:8px;justify-content:flex-end}
+
+/* FORM */
+.field{margin-bottom:13px}
+.field label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:8px 10px;outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.field-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+
+/* COLOR PICKER */
+.color-pick{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.cswatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .1s}
+.cswatch:hover{transform:scale(1.15)}.cswatch.sel{border-color:var(--text)}
+
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:24px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:var(--bg)}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:#FFF7F4}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+/* AI STATUS */
+.ai-bar{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:9px 13px;display:flex;align-items:center;gap:9px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--text2)}
+.spinner{width:13px;height:13px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* PREVIEW TABLE */
+.ptable{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px}
+.ptable th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);padding:5px 7px;text-align:left;border-bottom:1px solid var(--border);background:var(--bg2)}
+.ptable td{padding:5px 7px;border-bottom:1px solid var(--bg2);vertical-align:middle}
+.ptable tr:last-child td{border-bottom:none}
+.ptable input{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;outline:none;width:100%}
+.ptable input:focus{border-color:var(--accent)}
+.chk{width:13px;height:13px;accent-color:var(--accent);cursor:pointer}
+
+/* SUPPLIER PORTAL */
+.portal-wrap{min-height:100vh;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.portal-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:760px;box-shadow:0 8px 32px rgba(0,0,0,.08);overflow:hidden}
+.portal-head{background:#1A1916;border-radius:0;padding:20px 24px;text-align:center}
+.portal-head h1{font-size:20px;font-weight:700;color:#fff;margin-bottom:6px}
+.portal-head p{font-size:13px;font-family:var(--sans);color:#bbb}
+.portal-body{padding:24px}
+.portal-info{background:var(--bg2);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;font-family:var(--mono);font-size:12px;color:var(--text2);line-height:1.6}
+.portal-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.portal-table th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:7px 8px;text-align:left;border-bottom:1px solid var(--border);background:var(--bg2)}
+.portal-table td{padding:7px 8px;border-bottom:1px solid var(--bg2);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.portal-table tr:last-child td{border-bottom:none}
+.portal-table col.col-ref{width:15%}
+.portal-table col.col-name{width:25%}
+.portal-table col.col-loc{width:15%}
+.portal-table col.col-qty{width:8%}
+.portal-table col.col-date{width:37%}
+.portal-table input[type=date]{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:4px 6px;outline:none;width:100%}
+.portal-table input[type=date]:focus{border-color:var(--accent)}
+.portal-saved{background:#D8F0E0;color:#1E5C30;border:1px solid #9EDAB4;border-radius:var(--radius);padding:12px 16px;font-family:var(--mono);font-size:12px;text-align:center;margin-top:14px;display:none}
+
+/* NOTICE */
+.notice{background:#FFFBEB;border:1px solid #F5DFA0;border-radius:var(--radius);padding:9px 13px;font-family:var(--mono);font-size:11px;color:#7A5200;margin-bottom:12px;line-height:1.6}
+.notice a{color:var(--accent);text-decoration:none}
+.empty-lot{padding:16px;font-family:var(--mono);font-size:11px;color:var(--text3);text-align:center;background:var(--bg);border-radius:var(--radius);border:1px dashed var(--border)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- ══ FIREBASE ══ -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAeAvm4TyB21505QCs03Oi7NS-mRo4obt8",
+  authDomain: "planning-de-livraisons.firebaseapp.com",
+  projectId: "planning-de-livraisons",
+  storageBucket: "planning-de-livraisons.firebasestorage.app",
+  messagingSenderId: "70753528750",
+  appId: "1:70753528750:web:33de07b13dc8b5921d763f"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+window._fb = { db, doc, getDoc, setDoc, onSnapshot, collection, deleteDoc };
+
+// ══ SUPPLIER PORTAL MODE ══
+const params = new URLSearchParams(location.search);
+const portalToken = params.get('fournisseur');
+if (portalToken) {
+  renderPortal(portalToken);
+} else {
+  initApp();
+}
+
+// ══════════════════════════════════
+// SUPPLIER PORTAL
+// ══════════════════════════════════
+async function renderPortal(token) {
+  document.body.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'portal-wrap';
+  wrap.innerHTML = `<div class="portal-card">
+    <div style="background:#C8502A;border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:14px 24px;text-align:center">
+      <div style="font-size:14px;font-weight:700;color:#fff;letter-spacing:.04em">Agence BT — Architecte HMONP</div>
+    </div>
+    <div class="portal-head" style="border-radius:0">
+      <h1>Confirmation de livraison</h1>
+      <p style="color:#ccc;font-size:13px;font-family:var(--sans);margin-top:4px">Veuillez indiquer vos dates de livraison prévues</p>
+    </div>
+    <div class="portal-body">
+      <div class="portal-info" id="p-info">Chargement des commandes…</div>
+      <div id="p-content"></div>
+      <div class="portal-saved" id="p-saved">✓ Dates enregistrées — merci !</div>
+    </div>
+  </div>`;
+  document.body.appendChild(wrap);
+
+  // Load portal data
+  try {
+    const ref = doc(db, 'portals', token);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      document.getElementById('p-info').textContent = 'Lien invalide ou expiré.';
+      return;
+    }
+    const data = snap.data();
+    const { chantierName, supplierName, items } = data;
+
+    document.getElementById('p-info').innerHTML = `
+      <strong>${supplierName}</strong> — Chantier : ${chantierName}<br>
+      Merci de renseigner vos dates de livraison prévues pour chaque produit ci-dessous.
+    `;
+
+    const content = document.getElementById('p-content');
+    content.innerHTML = `
+      <table class="portal-table">
+        <colgroup><col class="col-ref"><col class="col-name"><col class="col-loc"><col class="col-qty"><col class="col-date"></colgroup>
+        <thead><tr><th>Réf.</th><th>Désignation</th><th>Localisation</th><th>Qté</th><th>Date prévue</th></tr></thead>
+        <tbody>
+          ${items.map((it,i) => `<tr>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${it.ref||'—'}</td>
+            <td style="font-weight:600;font-size:12px">${it.name}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${it.location||'—'}</td>
+            <td style="font-family:var(--mono);font-size:11px">${it.qty||'—'}</td>
+            <td><input type="date" id="pdate-${i}" value="${it.deliveryDate||''}" style="width:145px"/></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-primary" onclick="savePortal()">Enregistrer mes dates →</button>
+      </div>
+    `;
+
+    window._portalToken = token;
+    window._portalItems = items;
+    window._portalChantier = chantierName;
+    window._portalSupplier = supplierName;
+
+    window.savePortal = async () => {
+      const btn = document.querySelector('.btn.btn-primary');
+      if(btn){ btn.disabled=true; btn.textContent='Enregistrement…'; }
+      try {
+        const updated = window._portalItems.map((it,i) => ({...it, deliveryDate: document.getElementById('pdate-'+i)?.value||''}));
+        await setDoc(doc(db,'portals',window._portalToken), {
+          chantierName: window._portalChantier,
+          supplierName: window._portalSupplier,
+          items: updated,
+          updatedAt: new Date().toISOString()
+        });
+        const mainRef = doc(db,'app','data');
+        const mainSnap = await getDoc(mainRef);
+        if(mainSnap.exists()){
+          const mainData = mainSnap.data();
+          updated.forEach(it => {
+            if(!it.cmdId) return;
+            (mainData.chantiers||[]).forEach(ch => {
+              (ch.lots||[]).forEach(lot => {
+                const cmd = (lot.cmds||[]).find(c=>c.id===it.cmdId);
+                if(cmd) cmd.deliveryDate = it.deliveryDate;
+              });
+            });
+          });
+          await setDoc(mainRef, mainData);
+        }
+        document.getElementById('p-saved').style.display='block';
+        if(btn){ btn.textContent='✓ Enregistré'; }
+      } catch(e) {
+        if(btn){ btn.disabled=false; btn.textContent='Enregistrer mes dates →'; }
+        alert('Erreur lors de l\'enregistrement : ' + e.message);
+      }
+    };
+  } catch(e) {
+    document.getElementById('p-info').textContent = 'Erreur de chargement : ' + e.message;
+  }
+}
+
+// ══════════════════════════════════
+// MAIN APP
+// ══════════════════════════════════
+async function initApp() {
+  window._appReady = false;
+
+  // Render shell
+  document.body.innerHTML = `
+  <div class="topbar">
+    <div class="brand">Agence BT Architecte HMONP <span>·</span> Livraisons</div>
+    <div class="topbar-right">
+      <span class="btn-top"><span class="sync-dot loading" id="syncdot"></span><span id="synclabel">Connexion…</span></span>
+      <button class="btn-top" onclick="openModal('m-contacts');renderContacts()">📒 Fournisseurs</button>
+      <button class="btn-top" onclick="openModal('m-apikey')">⚙ Clé API</button>
+    </div>
+  </div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-section">Chantiers</div>
+    <div id="slist"></div>
+    <div class="sidebar-footer">
+      <button class="btn-new-ch" onclick="openModal('m-chantier')">+ Nouveau chantier</button>
+    </div>
+  </div>
+  <div class="main" id="main"></div>
+  ${modalsHTML()}
+  `;
+
+  // Load API key
+  const savedKey = localStorage.getItem('archi_apikey')||'';
+  if(savedKey) document.getElementById('f-apikey').value = savedKey;
+
+  // Subscribe to Firestore
+  const mainRef = doc(db,'app','data');
+  onSnapshot(mainRef, (snap) => {
+    if(snap.exists()){
+      window._state = snap.data();
+    } else {
+      window._state = defaultState();
+    }
+    if(!window._appReady){
+      window._appReady = true;
+      if(window._state.chantiers.length) window._curCh = window._state.chantiers[0].id;
+    }
+    setSyncOk();
+    render();
+  }, (err) => {
+    console.error('Firestore error:', err);
+    setSyncErr();
+    if(!window._state) window._state = defaultState();
+    render();
+  });
+
+  window.saveState = async () => {
+    setSyncLoading();
+    try {
+      await setDoc(mainRef, window._state);
+      setSyncOk();
+    } catch(e) { setSyncErr(); }
+  };
+
+  window.createPortalLink = async (chantierName, supplierName, items, cmdIds) => {
+    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const portalRef = doc(db, 'portals', token);
+    await setDoc(portalRef, {
+      chantierName, supplierName,
+      items: items.map((it,i)=>({...it, cmdId: cmdIds[i]})),
+      createdAt: new Date().toISOString()
+    });
+    return `${location.origin}${location.pathname}?fournisseur=${token}`;
+  };
+}
+
+function setSyncOk(){ const d=document.getElementById('syncdot'); const l=document.getElementById('synclabel'); if(d){d.className='sync-dot ok';l.textContent='Synchronisé';} }
+function setSyncErr(){ const d=document.getElementById('syncdot'); const l=document.getElementById('synclabel'); if(d){d.className='sync-dot err';l.textContent='Hors ligne';} }
+function setSyncLoading(){ const d=document.getElementById('syncdot'); const l=document.getElementById('synclabel'); if(d){d.className='sync-dot loading';l.textContent='Sauvegarde…';} }
+
+function defaultState(){
+  return { chantiers:[], nextChantier:1, nextLot:1, nextCmd:1 };
+}
+
+</script>
+
+<script>
+// ══════════════════════════════════
+// STATE & CONSTANTS
+// ══════════════════════════════════
+window._state = null;
+window._curCh = null;
+window._filter = 'all';
+window._editCh = null;
+window._editLot = null;
+window._editCmd = null;
+window._previewItems = [];
+window._selColor = '#C8502A';
+
+const LOT_COLORS = ['#C8502A','#2A5FA5','#3B7A47','#7A3BAA','#B07A1A','#2A8A7A','#AA3B5A','#606C88'];
+const STATUSES = ['pending','ordered','delivered'];
+const SL = {pending:'En attente',ordered:'Commandé',delivered:'Livré'};
+const SC = {pending:'b-pending',ordered:'b-ordered',delivered:'b-delivered',late:'b-late'};
+const SP = {pending:0,ordered:50,delivered:100};
+const SCOL = {pending:'#A09D97',ordered:'#2A5FA5',delivered:'#3B7A47',late:'#B03A2E'};
+
+// ══════════════════════════════════
+// UTILS
+// ══════════════════════════════════
+function today(){ return new Date().toISOString().slice(0,10); }
+function isLate(c){ return c.status!=='delivered'&&c.deliveryDate&&c.deliveryDate<today(); }
+function effS(c){ return isLate(c)?'late':c.status; }
+function fmtD(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}/${m}/${y}`; }
+function dL(c){ if(!c.deliveryDate)return null; return Math.round((new Date(c.deliveryDate)-new Date(today()))/(864e5)); }
+function esc(s){ return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function curCh(){ return (window._state?.chantiers||[]).find(c=>c.id===window._curCh)||null; }
+function allCmds(ch){ return(ch.lots||[]).flatMap(l=>l.cmds||[]); }
+function findCmd(id){ const ch=curCh(); if(!ch)return null; for(const l of ch.lots){const c=l.cmds.find(c=>c.id===id);if(c)return{lot:l,cmd:c};} return null; }
+
+// ══════════════════════════════════
+// RENDER
+// ══════════════════════════════════
+function render(){
+  if(!window._state) return;
+  renderSidebar();
+  renderMain();
+}
+
+function renderSidebar(){
+  const el=document.getElementById('slist'); if(!el)return;
+  const chantiers=window._state.chantiers||[];
+  if(!chantiers.length){
+    el.innerHTML='<div style="padding:12px 14px;font-family:var(--mono);font-size:11px;color:#555">Aucun chantier</div>';
+    return;
+  }
+  el.innerHTML=chantiers.map(c=>{
+    const late=allCmds(c).filter(isLate).length;
+    const dot=late>0?'#B03A2E':c.lots?.length>0?'#3B7A47':'#555';
+    return`<button class="sitem${c.id===window._curCh?' active':''}" onclick="switchCh(${c.id})">
+      <span class="sitem-dot" style="background:${dot}"></span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
+      ${late>0?`<span class="sitem-badge">${late}</span>`:''}
+    </button>`;
+  }).join('');
+}
+
+function renderMain(){
+  const el=document.getElementById('main'); if(!el)return;
+  const ch=curCh();
+  if(!ch){
+    el.innerHTML=`<div class="empty-state"><div style="font-size:48px">🏗</div><h2>Aucun chantier</h2><p>Créez votre premier chantier pour commencer</p><button class="btn btn-primary" style="margin-top:8px" onclick="openModal('m-chantier')">+ Nouveau chantier</button></div>`;
+    return;
+  }
+  const cmds=allCmds(ch);
+  const total=cmds.length, delivered=cmds.filter(c=>c.status==='delivered').length, late=cmds.filter(isLate).length;
+  const rate=total?Math.round(delivered/total*100):0;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'});
+  el.innerHTML=`
+    <div class="print-header" style="margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #1A1916">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#C8502A;margin-bottom:4px">Agence BT — Architecte HMONP</div>
+          <div style="font-size:20px;font-weight:800;color:#1A1916">${esc(ch.name)}</div>
+          ${ch.addr?`<div style="font-size:11px;color:#6B6860;margin-top:2px">${esc(ch.addr)}</div>`:''}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:#A09D97;font-family:var(--mono)">Rapport généré le</div>
+          <div style="font-size:12px;font-weight:600;color:#1A1916">${dateStr}</div>
+          <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+            <div style="background:#f0f0f0;padding:4px 10px;border-radius:4px;font-size:10px;font-family:monospace">${total} commandes</div>
+            <div style="background:#D8F0E0;padding:4px 10px;border-radius:4px;font-size:10px;font-family:monospace;color:#1E5C30">${delivered} livrées</div>
+            <div style="background:${late>0?'#FFE0DC':'#f0f0f0'};padding:4px 10px;border-radius:4px;font-size:10px;font-family:monospace;color:${late>0?'#8C1F1A':'#666'}">${late} en retard</div>
+            <div style="background:#f0f0f0;padding:4px 10px;border-radius:4px;font-size:10px;font-family:monospace">${rate}% livré</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ch-header">
+      <div>
+        <div class="ch-name">${esc(ch.name)}</div>
+        ${ch.addr?`<div class="ch-meta">${esc(ch.addr)}</div>`:''}
+      </div>
+      <div class="ch-actions">
+        <button class="btn" onclick="openImport()">📄 Import PDF</button>
+        <button class="btn" onclick="openNewCmd()">+ Commande</button>
+        <button class="btn" onclick="openNewLot()">+ Lot</button>
+        <button class="btn" onclick="printReport()">&#128424; Rapport PDF</button>
+        <button class="btn" onclick="editCh(${ch.id})">✎</button>
+        <button class="btn btn-danger" onclick="confirmDel('chantier',${ch.id})">Supprimer</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Commandes</div><div class="stat-val">${total}</div></div>
+      <div class="stat"><div class="stat-label">Livrées</div><div class="stat-val green">${delivered}</div></div>
+      <div class="stat"><div class="stat-label">En retard</div><div class="stat-val ${late?'red':''}">${late}</div></div>
+      <div class="stat"><div class="stat-label">Taux</div><div class="stat-val">${rate}%</div></div>
+      <div class="stat"><div class="stat-label">Lots</div><div class="stat-val">${ch.lots.length}</div></div>
+    </div>
+    <div class="filter-bar">
+      <button class="chip${window._filter==='all'?' active':''}" onclick="setFilter('all')">Tous (${total})</button>
+      <button class="chip${window._filter==='pending'?' active':''}" onclick="setFilter('pending')">En attente</button>
+      <button class="chip${window._filter==='ordered'?' active':''}" onclick="setFilter('ordered')">Commandé</button>
+      <button class="chip${window._filter==='delivered'?' active':''}" onclick="setFilter('delivered')">Livré</button>
+      <button class="chip${window._filter==='late'?' active':''}" onclick="setFilter('late')">En retard${late?` (${late})`:''}</button>
+    </div>
+    ${ch.lots.length===0
+      ?`<div class="empty-lot">Aucun lot — créez votre premier lot pour organiser vos commandes</div>`
+      :ch.lots.map(lot=>{
+        const lc=(lot.cmds||[]).filter(c=>window._filter==='all'?true:window._filter==='late'?isLate(c):c.status===window._filter&&!isLate(c));
+        return`<div class="lot-section">
+          <div class="lot-header">
+            <span class="lot-dot" style="background:${lot.color}"></span>
+            <span class="lot-name" style="color:${lot.color}">${esc(lot.name)}</span>
+            <span class="lot-count">${lot.cmds.length} commande${lot.cmds.length!==1?'s':''}</span>
+            <div class="lot-acts">
+              <button class="btn-sm" onclick="openNewCmdInLot(${lot.id})">+ Commande</button>
+              <button class="btn-sm" onclick="openImportLot(${lot.id})">📄 PDF</button>
+              <button class="btn-sm" onclick="genPortalLink(${lot.id})">🔗 Lien fournisseur</button>
+              <button class="btn-sm" onclick="editLot(${lot.id})">✎</button>
+              <button class="btn-del" onclick="confirmDel('lot',${lot.id})">✕</button>
+            </div>
+          </div>
+          ${lc.length===0
+            ?`<div class="empty-lot" style="font-size:11px;padding:10px">Aucune commande${window._filter!=='all'?' dans ce filtre':''}</div>`
+            :`<div class="table-wrap">${renderTable(lc)}</div>`
+          }
+        </div>`;
+      }).join('')
+    }
+  `;
+}
+
+function renderTable(cmds){
+  var rows = cmds.map(function(cmd){
+    var es=effS(cmd), pcol=SCOL[es], dl=dL(cmd);
+    var dh='—';
+    if(cmd.status==='delivered'&&cmd.deliveredDate){
+      var diff=Math.round((new Date(cmd.deliveredDate)-new Date(cmd.deliveryDate))/(864e5));
+      dh=diff<=0?('<span class="days-ok">+'+Math.abs(diff)+'j avance</span>'):('<span class="days-late">'+diff+'j retard</span>');
+    } else if(dl!==null){
+      if(dl<0) dh='<span class="days-late">'+Math.abs(dl)+'j retard</span>';
+      else if(dl===0) dh='<span class="days-late">Aujourd\'hui</span>';
+      else if(dl<=7) dh='<span class="days-warn">J-'+dl+'</span>';
+      else dh='<span class="days-neutral">J-'+dl+'</span>';
+    }
+    var statusLabel = es==='late'?'⚠ En retard':SL[cmd.status];
+    return '<tr>'+
+      '<td class="mono" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(cmd.ref||'—')+'</td>'+
+      '<td class="name" style="white-space:normal;word-break:break-word;line-height:1.3">'+esc(cmd.name)+'</td>'+
+      '<td class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(cmd.location||'—')+'</td>'+
+      '<td class="mono" style="text-align:right;white-space:nowrap">'+esc(cmd.qty||'—')+'</td>'+
+      '<td class="mono" style="white-space:nowrap">'+fmtD(cmd.deliveryDate)+'</td>'+
+      '<td class="mono" style="white-space:nowrap">'+(cmd.status==='delivered'?fmtD(cmd.deliveredDate):'—')+'</td>'+
+      '<td><span class="badge '+SC[es]+' badge-btn" onclick="openStatusMenu(event,'+cmd.id+')">'+statusLabel+' ▾</span></td>'+
+      '<td style="white-space:nowrap">'+dh+'</td>'+
+      '<td style="white-space:nowrap">'+
+        '<button class="btn-del" onclick="openEditCmd('+cmd.id+')" title="Modifier">✎</button>'+
+        '<button class="btn-del" onclick="confirmDel(\'cmd\','+cmd.id+')" title="Supprimer">✕</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+  return '<table style="table-layout:fixed;width:100%"><thead><tr>'+
+    '<th style="width:80px">Réf.</th>'+
+    '<th>Désignation</th>'+
+    '<th style="width:100px">Localisation</th>'+
+    '<th style="width:50px;text-align:right">Qté</th>'+
+    '<th style="width:95px">Livr. prévue</th>'+
+    '<th style="width:90px">Livré le</th>'+
+    '<th style="width:110px">Statut</th>'+
+    '<th style="width:85px">Délai</th>'+
+    '<th style="width:55px"></th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table>';
+}
+// ══════════════════════════════════
+// MODALS HTML
+// ══════════════════════════════════
+function modalsHTML(){
+  return`
+  <!-- Chantier -->
+  <div class="overlay" id="m-chantier" style="display:none" onclick="closeOvl(event,'m-chantier')"><div class="modal">
+    <div class="mhead"><span class="mtitle" id="mch-title">Nouveau chantier</span><button class="mclose" onclick="closeModal('m-chantier')">✕</button></div>
+    <div class="mbody">
+      <div class="field"><label>Nom du chantier</label><input id="fch-name" type="text" placeholder="ex. Rénovation Dupont — Montpellier"/></div>
+      <div class="field"><label>Adresse (optionnel)</label><input id="fch-addr" type="text" placeholder="ex. 12 rue de la Paix, Montpellier"/></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal('m-chantier')">Annuler</button><button class="btn btn-primary" onclick="saveCh()">Créer</button></div>
+  </div></div>
+
+  <!-- Lot -->
+  <div class="overlay" id="m-lot" style="display:none" onclick="closeOvl(event,'m-lot')"><div class="modal">
+    <div class="mhead"><span class="mtitle" id="mlot-title">Nouveau lot</span><button class="mclose" onclick="closeModal('m-lot')">✕</button></div>
+    <div class="mbody">
+      <div class="field"><label>Nom du lot</label><input id="flot-name" type="text" placeholder="ex. Revêtements sols et murs"/></div>
+      <div class="field"><label>Couleur</label><div class="color-pick" id="color-pick"></div></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal('m-lot')">Annuler</button><button class="btn btn-primary" onclick="saveLot()">Créer</button></div>
+  </div></div>
+
+  <!-- Commande -->
+  <div class="overlay" id="m-cmd" style="display:none" onclick="closeOvl(event,'m-cmd')"><div class="modal modal-lg">
+    <div class="mhead"><span class="mtitle" id="mcmd-title">Nouvelle commande</span><button class="mclose" onclick="closeModal('m-cmd')">✕</button></div>
+    <div class="mbody">
+      <div class="field-row">
+        <div class="field"><label>Référence</label><input id="fc-ref" type="text" placeholder="ex. ALU-001"/></div>
+        <div class="field"><label>Lot</label><select id="fc-lot"></select></div>
+      </div>
+      <div class="field"><label>Désignation</label><input id="fc-name" type="text" placeholder="ex. Menuiseries aluminium T68"/></div>
+      <div class="field-row">
+        <div class="field"><label>Fournisseur</label><input id="fc-supplier" type="text" placeholder="ex. Technal"/></div>
+        <div class="field"><label>Localisation (pièce)</label><input id="fc-location" type="text" placeholder="ex. Séjour RDC"/></div>
+      </div>
+      <div class="field-row3">
+        <div class="field"><label>Quantité</label><input id="fc-qty" type="text" placeholder="ex. 6 u."/></div>
+        <div class="field"><label>Date commande</label><input id="fc-order" type="date"/></div>
+        <div class="field"><label>Livraison prévue</label><input id="fc-delivery" type="date"/></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal('m-cmd')">Annuler</button><button class="btn btn-primary" onclick="saveCmd()">Enregistrer</button></div>
+  </div></div>
+
+  <!-- Import PDF -->
+  <div class="overlay" id="m-import" style="display:none" onclick="closeOvl(event,'m-import')"><div class="modal modal-lg">
+    <div class="mhead"><span class="mtitle">Importer un devis PDF</span><button class="mclose" onclick="closeModal('m-import');resetImport()">✕</button></div>
+    <div class="mbody">
+      <div class="notice" id="api-notice"></div>
+      <div class="field-row">
+        <div class="field"><label>Fournisseur</label><input id="fi-supplier" type="text" placeholder="Nom du fournisseur"/></div>
+        <div class="field"><label>Lot (créé auto si nouveau)</label><input id="fi-lot-name" type="text" placeholder="Nom du lot" oninput="this.dataset.edited=1"/></div>
+      </div>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" accept=".pdf" onchange="handlePDF(this.files[0])">
+        <div style="font-size:26px;margin-bottom:8px">📄</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:3px">Déposez le devis PDF ici</div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--text3)">ou cliquez pour choisir</div>
+      </div>
+      <div id="ai-wrap" style="display:none">
+        <div class="ai-bar"><div class="spinner" id="ai-spin"></div><span id="ai-msg">Analyse…</span></div>
+      </div>
+      <div id="preview-sec" style="display:none;margin-top:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text3)" id="prev-count"></span>
+          <label style="font-family:var(--mono);font-size:11px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="chk-all" class="chk" checked onchange="toggleAll(this.checked)"> Tout sélectionner
+          </label>
+        </div>
+        <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)">
+          <table class="ptable"><thead><tr><th></th><th>Réf.</th><th>Désignation</th><th>Localisation</th><th>Qté</th><th>Livraison prévue</th></tr></thead>
+          <tbody id="prev-body"></tbody></table>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot" id="import-foot" style="display:none">
+      <button class="btn" onclick="closeModal('m-import');resetImport()">Annuler</button>
+      <button class="btn btn-primary" onclick="importSelected()">Importer →</button>
+    </div>
+  </div></div>
+
+  <!-- Portal link -->
+  <div class="overlay" id="m-portal" style="display:none" onclick="closeOvl(event,'m-portal')"><div class="modal">
+    <div class="mhead"><span class="mtitle">Lien fournisseur</span><button class="mclose" onclick="closeModal('m-portal')">✕</button></div>
+    <div class="mbody">
+      <p style="font-size:12px;font-family:var(--mono);color:var(--text2);line-height:1.7;margin-bottom:14px">
+        Le fournisseur pourra saisir ses dates de livraison sans accéder au reste de l'application.
+      </p>
+      <div class="field"><label>Lien généré</label>
+        <div style="display:flex;gap:8px">
+          <input id="portal-url" type="text" readonly style="flex:1;font-size:11px"/>
+          <button class="btn" onclick="copyPortal()">📋 Copier</button>
+        </div>
+      </div>
+      <div id="portal-copied" style="font-family:var(--mono);font-size:11px;color:var(--success);display:none;margin-top:4px">✓ Lien copié !</div>
+      <div style="border-top:1px solid var(--bg2);margin:16px 0"></div>
+      <div class="field"><label>Ou envoyer par email</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <select id="portal-contact-select" style="flex:1;font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:7px 9px;outline:none" onchange="selectContact(this.value)">
+            <option value="">— Choisir un fournisseur enregistré —</option>
+          </select>
+          <button class="btn" onclick="openModal('m-contacts')" title="Gérer le carnet">📒</button>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="portal-email" type="email" placeholder="ou saisir une adresse email" style="flex:1"/>
+          <button class="btn btn-primary" onclick="sendPortalEmail()">✉ Envoyer</button>
+        </div>
+      </div>
+      <div id="portal-email-sent" style="font-family:var(--mono);font-size:11px;color:var(--success);display:none;margin-top:4px">✓ Gmail s'est ouvert dans un nouvel onglet !</div>
+    </div>
+    <div class="mfoot"><button class="btn btn-primary" onclick="closeModal('m-portal')">Fermer</button></div>
+  </div></div>
+
+  <!-- Confirm -->
+  <div class="overlay" id="m-confirm" style="display:none" onclick="closeOvl(event,'m-confirm')"><div class="modal" style="max-width:380px">
+    <div class="mhead"><span class="mtitle" id="conf-title">Confirmer</span><button class="mclose" onclick="closeModal('m-confirm')">✕</button></div>
+    <div class="mbody"><p style="font-size:12px;font-family:var(--mono);color:var(--text2);line-height:1.7" id="conf-msg"></p></div>
+    <div class="mfoot"><button class="btn" onclick="closeModal('m-confirm')">Annuler</button><button class="btn btn-danger" id="conf-ok">Supprimer</button></div>
+  </div></div>
+
+  <!-- Contacts / Carnet fournisseurs -->
+  <div class="overlay" id="m-contacts" style="display:none" onclick="closeOvl(event,'m-contacts')"><div class="modal" style="max-width:480px">
+    <div class="mhead"><span class="mtitle">Carnet fournisseurs</span><button class="mclose" onclick="closeModal('m-contacts')">✕</button></div>
+    <div class="mbody">
+      <div id="contacts-list" style="margin-bottom:14px"></div>
+      <div style="border-top:1px solid var(--bg2);padding-top:14px">
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">Ajouter un fournisseur</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input id="fc-cname" type="text" placeholder="Nom du fournisseur" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:7px 9px;outline:none"/>
+          <input id="fc-cemail" type="email" placeholder="email@fournisseur.com" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:7px 9px;outline:none"/>
+        </div>
+        <button class="btn btn-primary" onclick="addContact()" style="width:100%">+ Ajouter</button>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn btn-primary" onclick="closeModal('m-contacts')">Fermer</button></div>
+  </div></div>
+
+  <!-- API Key -->
+  <div class="overlay" id="m-apikey" style="display:none" onclick="closeOvl(event,'m-apikey')"><div class="modal" style="max-width:440px">
+    <div class="mhead"><span class="mtitle">Clé API Anthropic</span><button class="mclose" onclick="closeModal('m-apikey')">✕</button></div>
+    <div class="mbody">
+      <p style="font-size:12px;font-family:var(--mono);color:var(--text2);line-height:1.7;margin-bottom:14px">Nécessaire pour l'import PDF automatique. Disponible sur <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a></p>
+      <div class="field"><label>Clé API (sk-ant-...)</label><input id="f-apikey" type="password" placeholder="sk-ant-api03-…"/></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal('m-apikey')">Annuler</button><button class="btn btn-primary" onclick="saveApiKey()">Sauvegarder</button></div>
+  </div></div>
+  `;
+}
+
+// ══════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════
+function openModal(id){ document.getElementById(id).style.display='flex'; }
+function closeModal(id){ document.getElementById(id).style.display='none'; }
+function closeOvl(e,id){ if(e.target===document.getElementById(id)) closeModal(id); }
+
+// ══════════════════════════════════
+// NAV
+// ══════════════════════════════════
+function switchCh(id){ window._curCh=id; window._filter='all'; render(); }
+function setFilter(f){ window._filter=f; renderMain(); }
+
+// ══════════════════════════════════
+// CHANTIER CRUD
+// ══════════════════════════════════
+function editCh(id){
+  const ch=window._state.chantiers.find(c=>c.id===id);
+  window._editCh=id;
+  document.getElementById('mch-title').textContent='Modifier le chantier';
+  document.getElementById('fch-name').value=ch.name;
+  document.getElementById('fch-addr').value=ch.addr||'';
+  openModal('m-chantier');
+}
+function saveCh(){
+  const name=document.getElementById('fch-name').value.trim(); if(!name)return;
+  const addr=document.getElementById('fch-addr').value.trim();
+  if(window._editCh){
+    const ch=window._state.chantiers.find(c=>c.id===window._editCh);
+    ch.name=name; ch.addr=addr;
+  } else {
+    const id=window._state.nextChantier++;
+    window._state.chantiers.push({id,name,addr,lots:[]});
+    window._curCh=id;
+  }
+  window._editCh=null;
+  document.getElementById('mch-title').textContent='Nouveau chantier';
+  closeModal('m-chantier'); saveState();
+}
+function confirmDel(type, id){
+  let msg='', title='Supprimer';
+  if(type==='chantier'){ const ch=window._state.chantiers.find(c=>c.id===id); msg=`Supprimer le chantier "${ch.name}" et toutes ses commandes ?`; title='Supprimer le chantier'; }
+  else if(type==='lot'){ const ch=curCh(); const lot=ch.lots.find(l=>l.id===id); msg=`Supprimer le lot "${lot.name}" et ses ${lot.cmds.length} commande(s) ?`; title='Supprimer le lot'; }
+  else if(type==='cmd'){ const f=findCmd(id); msg=`Supprimer "${f.cmd.name}" ?`; title='Supprimer la commande'; }
+  document.getElementById('conf-title').textContent=title;
+  document.getElementById('conf-msg').textContent=msg;
+  document.getElementById('conf-ok').onclick=()=>{
+    if(type==='chantier'){ window._state.chantiers=window._state.chantiers.filter(c=>c.id!==id); if(window._curCh===id) window._curCh=window._state.chantiers[0]?.id||null; }
+    else if(type==='lot'){ const ch=curCh(); ch.lots=ch.lots.filter(l=>l.id!==id); }
+    else if(type==='cmd'){ const f=findCmd(id); f.lot.cmds=f.lot.cmds.filter(c=>c.id!==id); }
+    closeModal('m-confirm'); saveState();
+  };
+  openModal('m-confirm');
+}
+
+// ══════════════════════════════════
+// LOT CRUD
+// ══════════════════════════════════
+function openNewLot(){
+  window._editLot=null; window._selColor=LOT_COLORS[0];
+  document.getElementById('mlot-title').textContent='Nouveau lot';
+  document.getElementById('flot-name').value='';
+  renderColorPick(); openModal('m-lot');
+}
+function editLot(id){
+  const ch=curCh(); const lot=ch.lots.find(l=>l.id===id);
+  window._editLot=id; window._selColor=lot.color;
+  document.getElementById('mlot-title').textContent='Modifier le lot';
+  document.getElementById('flot-name').value=lot.name;
+  renderColorPick(); openModal('m-lot');
+}
+function renderColorPick(){
+  document.getElementById('color-pick').innerHTML=LOT_COLORS.map(c=>`<div class="cswatch${c===window._selColor?' sel':''}" style="background:${c}" onclick="selColor('${c}')"></div>`).join('');
+}
+function selColor(c){ window._selColor=c; renderColorPick(); }
+function saveLot(){
+  const ch=curCh(); if(!ch)return;
+  const name=document.getElementById('flot-name').value.trim(); if(!name)return;
+  if(window._editLot){ const l=ch.lots.find(l=>l.id===window._editLot); l.name=name; l.color=window._selColor; }
+  else ch.lots.push({id:window._state.nextLot++,name,color:window._selColor,cmds:[]});
+  window._editLot=null; closeModal('m-lot'); saveState();
+}
+
+// ══════════════════════════════════
+// CMD CRUD
+// ══════════════════════════════════
+function populateLotSel(selId, selectedId){
+  const ch=curCh(); if(!ch)return;
+  document.getElementById(selId).innerHTML=ch.lots.map(l=>`<option value="${l.id}"${l.id===selectedId?' selected':''}>${esc(l.name)}</option>`).join('');
+}
+function openNewCmd(){
+  const ch=curCh(); if(!ch||!ch.lots.length){alert('Créez d\'abord un lot.');return;}
+  window._editCmd=null;
+  document.getElementById('mcmd-title').textContent='Nouvelle commande';
+  ['fc-ref','fc-name','fc-supplier','fc-location','fc-qty','fc-order','fc-delivery'].forEach(id=>document.getElementById(id).value='');
+  populateLotSel('fc-lot',ch.lots[0].id); openModal('m-cmd');
+}
+function openNewCmdInLot(lotId){
+  const ch=curCh(); if(!ch)return;
+  window._editCmd=null;
+  document.getElementById('mcmd-title').textContent='Nouvelle commande';
+  ['fc-ref','fc-name','fc-supplier','fc-location','fc-qty','fc-order','fc-delivery'].forEach(id=>document.getElementById(id).value='');
+  populateLotSel('fc-lot',lotId); openModal('m-cmd');
+}
+function openEditCmd(id){
+  const f=findCmd(id); if(!f)return;
+  window._editCmd=id;
+  document.getElementById('mcmd-title').textContent='Modifier la commande';
+  document.getElementById('fc-ref').value=f.cmd.ref||'';
+  document.getElementById('fc-name').value=f.cmd.name||'';
+  document.getElementById('fc-supplier').value=f.cmd.supplier||'';
+  document.getElementById('fc-location').value=f.cmd.location||'';
+  document.getElementById('fc-qty').value=f.cmd.qty||'';
+  document.getElementById('fc-order').value=f.cmd.orderDate||'';
+  document.getElementById('fc-delivery').value=f.cmd.deliveryDate||'';
+  populateLotSel('fc-lot',f.lot.id); openModal('m-cmd');
+}
+function saveCmd(){
+  const ch=curCh(); if(!ch){console.error('No chantier');return;}
+  const name=document.getElementById('fc-name').value.trim(); if(!name){console.error('No name');return;}
+  const lotId=parseInt(document.getElementById('fc-lot').value);
+  const lot=ch.lots.find(l=>l.id===lotId);
+  if(!lot){console.error('No lot found for id',lotId,'available:',ch.lots.map(l=>l.id));return;}
+  const deliveryDate=document.getElementById('fc-delivery').value;
+  console.log('Saving deliveryDate:', deliveryDate);
+  const data={ref:document.getElementById('fc-ref').value.trim(),name,supplier:document.getElementById('fc-supplier').value.trim(),location:document.getElementById('fc-location').value.trim(),qty:document.getElementById('fc-qty').value.trim(),orderDate:document.getElementById('fc-order').value,deliveryDate:deliveryDate};
+  if(window._editCmd){
+    const existing=findCmd(window._editCmd);
+    const prevDeliveredDate=existing?existing.cmd.deliveredDate:'';
+    const prevStatus=existing?existing.cmd.status:'pending';
+    for(const l of ch.lots){const i=l.cmds.findIndex(c=>c.id===window._editCmd);if(i>=0){l.cmds.splice(i,1);break;}}
+    lot.cmds.push({id:window._editCmd,deliveredDate:prevDeliveredDate,status:prevStatus,...data});
+    console.log('Updated cmd:', window._editCmd, 'deliveryDate:', data.deliveryDate);
+  } else {
+    lot.cmds.push({id:window._state.nextCmd++,...data,deliveredDate:'',status:'pending'});
+  }
+  window._editCmd=null; closeModal('m-cmd'); saveState();
+}
+function advCmd(id){
+  const f=findCmd(id); if(!f)return;
+  const i=STATUSES.indexOf(f.cmd.status);
+  if(i<STATUSES.length-1){f.cmd.status=STATUSES[i+1];if(f.cmd.status==='delivered')f.cmd.deliveredDate=today();}
+  saveState();
+}
+
+// ══════════════════════════════════
+// PDF IMPORT
+// ══════════════════════════════════
+let _importLotId=null;
+function openImport(){
+  const ch=curCh(); if(!ch||!ch.lots.length){alert('Créez d\'abord un lot.');return;}
+  _importLotId=ch.lots[0].id; resetImport();
+  updateApiNotice(); openModal('m-import');
+}
+function openImportLot(lotId){
+  _importLotId=lotId; resetImport();
+  updateApiNotice(); openModal('m-import');
+}
+function updateApiNotice(){
+  const key=localStorage.getItem('archi_apikey')||'';
+  const n=document.getElementById('api-notice');
+  if(!key){n.style.display='';n.innerHTML='⚠ Aucune clé API. <a href="#" onclick="closeModal(\'m-import\');openModal(\'m-apikey\')">Configurez votre clé Anthropic</a>';}
+  else n.style.display='none';
+}
+function resetImport(){
+  document.getElementById('ai-wrap').style.display='none';
+  document.getElementById('preview-sec').style.display='none';
+  document.getElementById('import-foot').style.display='none';
+  document.getElementById('fi-supplier').value='';
+  const lotField=document.getElementById('fi-lot-name');
+  if(lotField){lotField.value='';delete lotField.dataset.edited;}
+  window._previewItems=[];
+}
+async function handlePDF(file){
+  if(!file)return;
+  const apiKey=localStorage.getItem('archi_apikey')||'';
+  if(!apiKey){alert('Configurez votre clé API Anthropic d\'abord.');return;}
+  const guess=file.name.replace(/\.pdf$/i,'').replace(/[-_]/g,' ');
+  // Pre-fill supplier from filename if empty
+  if(!document.getElementById('fi-supplier').value){
+    document.getElementById('fi-supplier').value=guess;
+  }
+  // Only pre-fill lot name if it's empty (never overwrite an existing lot name)
+  const lotField=document.getElementById('fi-lot-name');
+  if(lotField&&!lotField.value){
+    lotField.value=guess;
+  }
+  document.getElementById('ai-wrap').style.display='';
+  document.getElementById('preview-sec').style.display='none';
+  document.getElementById('import-foot').style.display='none';
+  document.getElementById('ai-msg').textContent='Lecture du PDF…';
+  const reader=new FileReader();
+  reader.onload=async(e)=>{
+    const b64=e.target.result.split(',')[1];
+    document.getElementById('ai-msg').textContent='Extraction par IA…';
+    try{
+      const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[
+          {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
+          {type:'text',text:`Analyse ce devis fournisseur du bâtiment. Extrais toutes les lignes produits/prestations.
+Réponds UNIQUEMENT avec un tableau JSON valide, sans texte ni markdown :
+[{"ref":"","name":"désignation complète","location":"pièce si mentionnée sinon vide","qty":"quantité avec unité","deliveryDate":"YYYY-MM-DD si mentionnée sinon vide"}]`}
+        ]}]})
+      });
+      const data=await resp.json();
+      if(data.error)throw new Error(data.error.message);
+      const text=data.content.map(c=>c.text||'').join('');
+      const items=JSON.parse(text.replace(/```json|```/g,'').trim());
+      window._previewItems=items.map((it,i)=>({...it,_sel:true,_i:i}));
+      showPreview();
+    }catch(err){
+      document.getElementById('ai-msg').textContent='Erreur : '+(err.message||'impossible');
+      document.getElementById('ai-spin').style.display='none';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+function showPreview(){
+  document.getElementById('ai-spin').style.display='none';
+  document.getElementById('ai-msg').textContent=`✓ ${window._previewItems.length} ligne(s) extraite(s)`;
+  document.getElementById('prev-count').textContent=`${window._previewItems.length} produits`;
+  document.getElementById('chk-all').checked=true;
+  document.getElementById('prev-body').innerHTML=window._previewItems.map((it,i)=>`<tr>
+    <td><input type="checkbox" class="chk" checked onchange="window._previewItems[${i}]._sel=this.checked"></td>
+    <td><input value="${esc(it.ref)}" oninput="window._previewItems[${i}].ref=this.value" style="width:80px"/></td>
+    <td><input value="${esc(it.name)}" oninput="window._previewItems[${i}].name=this.value" style="width:180px"/></td>
+    <td><input value="${esc(it.location)}" oninput="window._previewItems[${i}].location=this.value" style="width:100px" placeholder="Pièce…"/></td>
+    <td><input value="${esc(it.qty)}" oninput="window._previewItems[${i}].qty=this.value" style="width:65px"/></td>
+    <td><input type="date" value="${it.deliveryDate||''}" oninput="window._previewItems[${i}].deliveryDate=this.value" style="width:130px"/></td>
+  </tr>`).join('');
+  document.getElementById('preview-sec').style.display='';
+  document.getElementById('import-foot').style.display='';
+}
+function toggleAll(v){ window._previewItems.forEach(i=>i._sel=v); document.querySelectorAll('#prev-body .chk').forEach(c=>c.checked=v); }
+function importSelected(){
+  const ch=curCh(); if(!ch)return;
+  const supplier=document.getElementById('fi-supplier').value.trim();
+  const lotName=(document.getElementById('fi-lot-name').value.trim())||supplier||'Import PDF';
+  const sel=window._previewItems.filter(i=>i._sel&&i.name);
+  if(!sel.length)return;
+  // Find or create lot
+  let lot=ch.lots.find(l=>l.name.toLowerCase()===lotName.toLowerCase());
+  if(!lot){
+    const colors=['#C8502A','#2A5FA5','#3B7A47','#7A3BAA','#B07A1A','#2A8A7A','#AA3B5A','#606C88'];
+    const col=colors[ch.lots.length%colors.length];
+    lot={id:window._state.nextLot++,name:lotName,color:col,cmds:[]};
+    ch.lots.push(lot);
+  }
+  sel.forEach(it=>lot.cmds.push({id:window._state.nextCmd++,ref:it.ref||'',name:it.name,supplier,location:it.location||'',qty:it.qty||'',orderDate:today(),deliveryDate:it.deliveryDate||'',deliveredDate:'',status:'pending'}));
+  closeModal('m-import'); resetImport(); saveState();
+}
+
+// ══════════════════════════════════
+// PORTAL LINK
+// ══════════════════════════════════
+async function genPortalLink(lotId){
+  const ch=curCh(); if(!ch)return;
+  const lot=ch.lots.find(l=>l.id===lotId); if(!lot||!lot.cmds.length){alert('Ce lot ne contient pas de commandes.');return;}
+  // Group by supplier
+  const suppliers=[...new Set(lot.cmds.map(c=>c.supplier).filter(Boolean))];
+  let supplier=suppliers.length===1?suppliers[0]:prompt('Plusieurs fournisseurs dans ce lot. Entrez le nom du fournisseur pour le lien :',suppliers[0]||'');
+  if(!supplier)return;
+  const items=lot.cmds.filter(c=>!c.supplier||c.supplier===supplier);
+  const url=await window.createPortalLink(ch.name, supplier, items, items.map(c=>c.id));
+  document.getElementById('portal-url').value=url;
+  document.getElementById('portal-copied').style.display='none';
+  document.getElementById('portal-email').value='';
+  document.getElementById('portal-email').dataset.supplier=supplier;
+  document.getElementById('portal-email').dataset.chantier=ch.name;
+  document.getElementById('portal-email-sent').style.display='none';
+  updateContactSelect();
+  // Auto-select contact if name matches supplier
+  const contacts=getContacts();
+  const match=contacts.find(c=>c.name.toLowerCase()===supplier.toLowerCase());
+  if(match) { document.getElementById('portal-contact-select').value=match.email; document.getElementById('portal-email').value=match.email; }
+  openModal('m-portal');
+}
+function copyPortal(){
+  const url=document.getElementById('portal-url').value;
+  navigator.clipboard.writeText(url).then(()=>{
+    document.getElementById('portal-copied').style.display='block';
+    setTimeout(()=>document.getElementById('portal-copied').style.display='none', 3000);
+  });
+}
+function sendPortalEmail(){
+  var url=document.getElementById('portal-url').value;
+  var email=document.getElementById('portal-email').value.trim();
+  if(!email){document.getElementById('portal-email').focus();return;}
+  var chantier=document.getElementById('portal-email').dataset.chantier||'';
+  var subject='Confirmation de livraison - Chantier ' + chantier;
+  var bodyText='Bonjour,' + String.fromCharCode(13,10,13,10);
+  bodyText += 'Dans le cadre du chantier "' + chantier + '", merci de bien vouloir renseigner vos dates de livraison en cliquant sur le lien ci-dessous.' + String.fromCharCode(13,10,13,10);
+  bodyText += 'Lien vers le tableau de livraison :' + String.fromCharCode(13,10);
+  bodyText += url + String.fromCharCode(13,10,13,10);
+  bodyText += 'Cordialement,';
+  var gmailUrl='https://mail.google.com/mail/u/0/?view=cm&fs=1&to='+encodeURIComponent(email)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(bodyText);
+  var a=document.createElement('a');
+  a.href=gmailUrl;
+  a.target='_blank';
+  a.rel='noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  document.getElementById('portal-email-sent').style.display='block';
+  setTimeout(function(){document.getElementById('portal-email-sent').style.display='none';},4000);
+}
+
+// ══════════════════════════════════
+// CONTACTS / CARNET FOURNISSEURS
+// ══════════════════════════════════
+function getContacts(){
+  try{ return JSON.parse(localStorage.getItem('archi_contacts')||'[]'); }catch(e){ return []; }
+}
+function saveContacts(contacts){
+  localStorage.setItem('archi_contacts', JSON.stringify(contacts));
+}
+function addContact(){
+  const name=document.getElementById('fc-cname').value.trim();
+  const email=document.getElementById('fc-cemail').value.trim();
+  if(!name||!email){ return; }
+  const contacts=getContacts();
+  if(contacts.find(c=>c.email===email)){ alert('Ce fournisseur existe déjà.'); return; }
+  contacts.push({name, email});
+  saveContacts(contacts);
+  document.getElementById('fc-cname').value='';
+  document.getElementById('fc-cemail').value='';
+  renderContacts();
+  updateContactSelect();
+}
+function deleteContact(email){
+  const contacts=getContacts().filter(c=>c.email!==email);
+  saveContacts(contacts);
+  renderContacts();
+  updateContactSelect();
+}
+function renderContacts(){
+  const contacts=getContacts();
+  const el=document.getElementById('contacts-list'); if(!el) return;
+  if(!contacts.length){
+    el.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--text3);text-align:center;padding:12px">Aucun fournisseur enregistré</div>';
+    return;
+  }
+  el.innerHTML=contacts.map(c=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bg2)">
+      <div>
+        <div style="font-size:13px;font-weight:600">${esc(c.name)}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text3)">${esc(c.email)}</div>
+      </div>
+      <button class="btn-del" onclick="deleteContact('${esc(c.email)}')">✕</button>
+    </div>
+  `).join('');
+}
+function updateContactSelect(){
+  const sel=document.getElementById('portal-contact-select'); if(!sel) return;
+  const contacts=getContacts();
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Choisir un fournisseur enregistré —</option>'+
+    contacts.map(c=>`<option value="${esc(c.email)}"${c.email===cur?' selected':''}>${esc(c.name)} — ${esc(c.email)}</option>`).join('');
+}
+function selectContact(email){
+  if(email) document.getElementById('portal-email').value=email;
+}
+
+// ══════════════════════════════════
+// API KEY
+// ══════════════════════════════════
+function saveApiKey(){
+  const k=document.getElementById('f-apikey').value.trim();
+  if(k)localStorage.setItem('archi_apikey',k);
+  closeModal('m-apikey');
+}
+
+// ══════════════════════════════════
+// PRINT / PDF REPORT
+// ══════════════════════════════════
+function printReport(){
+  const ch = curCh(); if(!ch) return;
+  const cmds = allCmds(ch);
+  const total = cmds.length;
+  const delivered = cmds.filter(c=>c.status==='delivered').length;
+  const late = cmds.filter(isLate).length;
+  const rate = total ? Math.round(delivered/total*100) : 0;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+  const yy = String(now.getFullYear()).slice(2);
+  const mm = String(now.getMonth()+1).padStart(2,'0');
+  const dd = String(now.getDate()).padStart(2,'0');
+  const fileDate = yy+mm+dd;
+  const chantierSlug = ch.name.replace(/[^a-zA-Z0-9À-ɏ]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+  const fileName = fileDate + '_suivi_fournitures_' + chantierSlug;
+
+  // Build print-specific table for each lot
+  const lotsHTML = ch.lots.map(lot => {
+    const lotCmds = lot.cmds || [];
+    if(!lotCmds.length) return '';
+    const rows = lotCmds.map(cmd => {
+      const es = effS(cmd);
+      const dl = dL(cmd);
+      let delayStr = '—';
+      if(cmd.status==='delivered' && cmd.deliveredDate){
+        const diff = Math.round((new Date(cmd.deliveredDate)-new Date(cmd.deliveryDate))/(864e5));
+        delayStr = diff<=0 ? '+'+Math.abs(diff)+'j avance' : diff+'j retard';
+      } else if(dl!==null){
+        if(dl<0) delayStr = Math.abs(dl)+'j retard';
+        else if(dl===0) delayStr = "Aujourd'hui";
+        else delayStr = 'J-'+dl;
+      }
+      const statusLabel = es==='late' ? 'En retard' : SL[cmd.status];
+      const statusColor = es==='late'?'#FFE0DC':es==='delivered'?'#D8F0E0':es==='ordered'?'#DCEEFF':'#FFF3DC';
+      const statusText = es==='late'?'#8C1F1A':es==='delivered'?'#1E5C30':es==='ordered'?'#1A3F7A':'#7A5200';
+      const pct = SP[cmd.status]||0;
+      const pcol = SCOL[es];
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:9px;color:#888">' + esc(cmd.ref||'—') + '</td>' +
+        '<td style="font-weight:600;font-size:10px">' + esc(cmd.name) + '</td>' +
+        '<td style="font-family:monospace;font-size:9px;color:#666">' + esc(cmd.location||'—') + '</td>' +
+        '<td style="font-family:monospace;font-size:9px;text-align:right">' + esc(cmd.qty||'—') + '</td>' +
+        '<td style="font-family:monospace;font-size:9px">' + fmtD(cmd.orderDate) + '</td>' +
+        '<td style="font-family:monospace;font-size:9px">' + fmtD(cmd.deliveryDate) + '</td>' +
+        '<td style="font-family:monospace;font-size:9px">' + (cmd.status==='delivered'?fmtD(cmd.deliveredDate):'—') + '</td>' +
+        '<td><span style="display:inline-block;font-size:8px;padding:2px 7px;border-radius:10px;background:'+statusColor+';color:'+statusText+'">' + statusLabel + '</span></td>' +
+        '<td style="font-family:monospace;font-size:9px;color:' + (dl!==null&&dl<0?'#B03A2E':es==='delivered'&&delayStr.includes('avance')?'#3B7A47':'#888') + '">' + delayStr + '</td>' +
+        '</tr>';
+    }).join('');
+    return '<div style="margin-bottom:16px;page-break-inside:avoid">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:5px;border-bottom:2px solid #1A1916">' +
+        '<span style="width:9px;height:9px;border-radius:50%;background:'+lot.color+';display:inline-block;flex-shrink:0"></span>' +
+        '<span style="font-size:11px;font-weight:700">' + esc(lot.name) + '</span>' +
+        '<span style="font-size:9px;color:#888;font-family:monospace">' + lotCmds.length + ' commande' + (lotCmds.length>1?'s':'') + '</span>' +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:9px">' +
+        '<thead><tr style="background:#ECEAE4">' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Réf.</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Désignation</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Localisation</th>' +
+          '<th style="padding:4px 6px;text-align:right;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Qté</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Commandé</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Livr. prévue</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Livré le</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Statut</th>' +
+          '<th style="padding:4px 6px;text-align:left;font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #D8D5CE">Délai</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
+  }).join('');
+
+  const printWin = window.open('', '_blank');
+  printWin.document.write('<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'+
+    '<title>' + fileName + '</title>'+
+    '<style>'+
+      '*{box-sizing:border-box;margin:0;padding:0}'+
+      'body{font-family:"Helvetica Neue",Arial,sans-serif;color:#1A1916;background:#fff;padding:0}'+
+      'tbody tr:nth-child(even){background:#F9F8F5}'+
+      'tbody tr td{padding:5px 6px;border-bottom:1px solid #ECEAE4;vertical-align:middle}'+
+      '@page{size:A4 portrait;margin:12mm 10mm}'+
+      '@media print{body{padding:0}}'+
+    '</style></head><body>'+
+    // Header
+    '<div style="margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #1A1916">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between">'+
+        '<div>'+
+          '<div style="font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#C8502A;margin-bottom:4px">Agence BT — Architecte HMONP</div>'+
+          '<div style="font-size:20px;font-weight:800;color:#1A1916;line-height:1.1">' + esc(ch.name) + '</div>'+
+          (ch.addr?'<div style="font-size:10px;color:#6B6860;margin-top:3px">'+esc(ch.addr)+'</div>':'')+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-size:9px;color:#A09D97;font-family:monospace;margin-bottom:3px">Rapport généré le</div>'+
+          '<div style="font-size:11px;font-weight:600">' + dateStr + '</div>'+
+          '<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">'+
+            '<span style="background:#f0f0f0;padding:3px 8px;border-radius:4px;font-size:9px;font-family:monospace">' + total + ' commandes</span>'+
+            '<span style="background:#D8F0E0;padding:3px 8px;border-radius:4px;font-size:9px;font-family:monospace;color:#1E5C30">' + delivered + ' livrées</span>'+
+            '<span style="background:' + (late>0?'#FFE0DC':'#f0f0f0') + ';padding:3px 8px;border-radius:4px;font-size:9px;font-family:monospace;color:' + (late>0?'#8C1F1A':'#666') + '">' + late + ' en retard</span>'+
+            '<span style="background:#f0f0f0;padding:3px 8px;border-radius:4px;font-size:9px;font-family:monospace">' + rate + '% livré</span>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    lotsHTML +
+    '<script>window.onload=function(){window.print();}<\/script>'+
+    '</body></html>');
+  printWin.document.close();
+}
+
+// ══════════════════════════════════
+// STATUS MENU
+// ══════════════════════════════════
+window._menuCmdId = null;
+
+function initStatusMenu(){
+  if(document.getElementById('status-menu')) return;
+  const m = document.createElement('div');
+  m.className = 'status-menu';
+  m.id = 'status-menu';
+  m.innerHTML = `
+    <div class="status-opt" onclick="setStatus(window._menuCmdId,'pending')"><span class="badge b-pending">En attente</span></div>
+    <div class="status-opt" onclick="setStatus(window._menuCmdId,'ordered')"><span class="badge b-ordered">Commandé</span></div>
+    <div class="status-opt" onclick="setStatus(window._menuCmdId,'delivered')"><span class="badge b-delivered">Livré</span></div>
+  `;
+  document.body.appendChild(m);
+}
+
+function openStatusMenu(e, cmdId){
+  e.stopPropagation();
+  initStatusMenu();
+  window._menuCmdId = cmdId;
+  const menu = document.getElementById('status-menu');
+  const rect = e.target.getBoundingClientRect();
+  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  menu.style.left = rect.left + 'px';
+  menu.classList.add('open');
+}
+
+function setStatus(id, newStatus){
+  const f = findCmd(id); if(!f) return;
+  f.cmd.status = newStatus;
+  if(newStatus === 'delivered' && !f.cmd.deliveredDate) f.cmd.deliveredDate = today();
+  if(newStatus !== 'delivered') f.cmd.deliveredDate = '';
+  document.getElementById('status-menu')?.classList.remove('open');
+  saveState();
+}
+
+document.addEventListener('click', ()=> document.getElementById('status-menu')?.classList.remove('open'));
+
+// ══════════════════════════════════
+// KEYBOARD
+// ══════════════════════════════════
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') document.querySelectorAll('.overlay').forEach(o=>{if(o.style.display!=='none')o.style.display='none';});
+});
+
+// Drag & drop
+document.addEventListener('DOMContentLoaded',()=>{
+  const dz=document.getElementById('drop-zone'); if(!dz)return;
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');const f=e.dataTransfer.files[0];if(f?.type==='application/pdf')handlePDF(f);});
+});
+</script>
+</body>
+</html>
